@@ -5,8 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ledisdb/ledisdb/store"
 	"github.com/siddontang/go/hack"
+
+	"github.com/ledisdb/ledisdb/store"
 )
 
 var errSetKey = errors.New("invalid set key")
@@ -421,6 +422,37 @@ func (db *DB) SMembers(key []byte) ([][]byte, error) {
 		}
 
 		v = append(v, m)
+	}
+
+	return v, nil
+}
+
+// SRandMember gets members of set.
+func (db *DB) SRandMember(key []byte, size int64) ([][]byte, error) {
+	if err := checkKeySize(key); err != nil {
+		return nil, err
+	}
+
+	start := db.sEncodeStartKey(key)
+	stop := db.sEncodeStopKey(key)
+
+	v := make([][]byte, 0, 16)
+
+	it := db.bucket.RangeLimitIterator(start, stop, store.RangeROpen, 0, -1)
+	defer it.Close()
+
+	n := int64(0)
+	for ; it.Valid(); it.Next() {
+		_, m, err := db.sDecodeSetKey(it.Key())
+		if err != nil {
+			return nil, err
+		}
+
+		v = append(v, m)
+		n++
+		if n >= size {
+			break
+		}
 	}
 
 	return v, nil
